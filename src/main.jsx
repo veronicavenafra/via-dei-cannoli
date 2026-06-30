@@ -146,14 +146,31 @@ function App() {
       .sort((a, b) => (b.avg ?? -1) - (a.avg ?? -1));
   }, [bakeries, reviews]);
 
-  const bestBy = (field) => {
-    const scored = bakeries.map((b) => {
-      const list = reviews.filter((r) => r.bakery_id === b.id);
-      if (!list.length) return null;
-      return { bakery: b, score: Number((list.reduce((s, r) => s + r[field], 0) / list.length).toFixed(2)) };
-    }).filter(Boolean).sort((a, b) => b.score - a.score);
-    return scored[0];
+  const bestByCriterion = (field) => {
+    const scored = bakeries
+      .map((b) => {
+        const list = reviews.filter((r) => r.bakery_id === b.id);
+        if (!list.length) return null;
+        return {
+          bakery: b,
+          score: Number((list.reduce((s, r) => s + r[field], 0) / list.length).toFixed(2)),
+          count: list.length
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.score - a.score || b.count - a.count);
+
+    return scored[0] ?? null;
   };
+
+  const overallWinner = leaderboard.find((b) => b.avg !== null && b.avg !== undefined);
+  const criterionWinners = [
+    { key: "shell", label: "Miglior crosta", hint: "Friabilità, spessore, croccantezza" },
+    { key: "ricotta", label: "Miglior ricotta", hint: "Crema, dolcezza, qualità" },
+    { key: "pistachio", label: "Miglior pistacchio/topping", hint: "Topping, equilibrio, generosità" },
+    { key: "freshness", label: "Miglior freschezza", hint: "Farcitura, cialda, sensazione appena fatto" },
+    { key: "wow", label: "Miglior effetto wow", hint: "Memorabilità e goduria complessiva" }
+  ].map((criterion) => ({ ...criterion, winner: bestByCriterion(criterion.key) }));
 
   async function addBakery(payload) {
     const bakery = {
@@ -218,18 +235,25 @@ function App() {
         </button>
       </header>
 
-      <section className="panel winner">
-        <Trophy />
-        <div>
-          <span>Classifica provvisoria</span>
-          <strong>{leaderboard[0]?.avg ? `${leaderboard[0].name} · ${leaderboard[0].avg}/10` : "Ancora nessun voto"}</strong>
+      <section className="dashboard">
+        <div className="panel winner main-winner">
+          <Trophy />
+          <div>
+            <span>Migliore complessivo</span>
+            <strong>{overallWinner?.avg ? `${overallWinner.name} · ${overallWinner.avg}/10` : "Ancora nessun voto"}</strong>
+            <p>
+              {overallWinner?.avg
+                ? `Media complessiva calcolata su tutti i voti ricevuti: crosta, ricotta, pistacchio/topping, freschezza ed effetto wow.`
+                : "Appena inserite i primi voti, qui comparirà il cannolo in testa alla classifica generale."}
+            </p>
+          </div>
         </div>
-      </section>
 
-      <section className="grid stats">
-        <MiniStat title="Miglior crosta" item={bestBy("shell")} />
-        <MiniStat title="Miglior ricotta" item={bestBy("ricotta")} />
-        <MiniStat title="Miglior wow" item={bestBy("wow")} />
+        <div className="criteria-grid">
+          {criterionWinners.map((item) => (
+            <CriterionCard key={item.key} item={item} />
+          ))}
+        </div>
       </section>
 
       <div className="section-title">
@@ -279,11 +303,16 @@ function App() {
   );
 }
 
-function MiniStat({ title, item }) {
+function CriterionCard({ item }) {
   return (
-    <div className="panel mini">
-      <span>{title}</span>
-      <strong>{item ? `${item.bakery.name} · ${item.score}` : "—"}</strong>
+    <div className="panel criterion-card">
+      <span>{item.label}</span>
+      <strong>{item.winner ? `${item.winner.bakery.name} · ${item.winner.score}/10` : "—"}</strong>
+      <p>
+        {item.winner
+          ? `Media tra ${item.winner.count} ${item.winner.count === 1 ? "votante" : "votanti"}. ${item.hint}.`
+          : item.hint}
+      </p>
     </div>
   );
 }

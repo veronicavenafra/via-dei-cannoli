@@ -33,3 +33,10 @@ Con Supabase configurato, l'app:
 Apri la web app nel browser, poi:
 - iPhone: Condividi → Aggiungi alla schermata Home.
 - Android: Menu browser → Installa app / Aggiungi a schermata Home.
+
+## Schermata iniziale
+
+La home mostra:
+- il migliore complessivo, calcolato come media di tutti i criteri e di tutti i votanti;
+- il migliore per ciascuna voce: crosta, ricotta, pistacchio/topping, freschezza, effetto wow;
+- per ogni vincitore di categoria viene indicata la media e il numero di votanti.
