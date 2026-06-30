@@ -84,14 +84,78 @@ button.secondary {
   backdrop-filter: blur(14px);
 }
 
+.identity {
+  margin-top: 16px;
+}
+
+.identity label {
+  display: block;
+  font-weight: 900;
+  color: #7c2d12;
+}
+
+.identity input {
+  margin-top: 8px;
+}
+
+.identity p {
+  margin: 8px 0 0;
+  color: #9a3412;
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.tabs button {
+  justify-content: center;
+  background: rgba(255,255,255,.72);
+  color: #7c2d12;
+  box-shadow: none;
+  border: 1px solid rgba(124,45,18,.12);
+}
+
+.tabs button.active {
+  background: #7c2d12;
+  color: #fff7ed;
+}
+
+.notice {
+  margin-bottom: 16px;
+  color: #9a3412;
+  font-weight: 800;
+}
 
 .dashboard {
   margin: 20px 0 0;
 }
 
+.dashboard-heading {
+  margin-bottom: 12px;
+}
+
+.dashboard-heading p {
+  margin: 6px 0 0;
+  color: #9a3412;
+}
+
+.winner {
+  margin: 20px 0;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
 .main-winner {
   align-items: flex-start;
 }
+
+.winner svg { color: #ca8a04; }
+.winner span, .mini span { display: block; color: #9a3412; font-size: .9rem; }
+.winner strong { font-size: 1.25rem; }
 
 .main-winner p,
 .criterion-card p {
@@ -120,18 +184,6 @@ button.secondary {
   font-weight: 800;
 }
 
-
-.winner {
-  margin: 20px 0;
-  display: flex;
-  gap: 14px;
-  align-items: center;
-}
-
-.winner svg { color: #ca8a04; }
-.winner span, .mini span { display: block; color: #9a3412; font-size: .9rem; }
-.winner strong { font-size: 1.25rem; }
-
 .grid {
   display: grid;
   gap: 12px;
@@ -143,6 +195,7 @@ button.secondary {
   justify-content: space-between;
   align-items: center;
   margin: 28px 0 12px;
+  gap: 14px;
 }
 
 .cards {
@@ -238,6 +291,10 @@ textarea { min-height: 96px; resize: vertical; }
   margin-top: 16px;
 }
 
+@media (max-width: 900px) {
+  .criteria-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
 @media (max-width: 720px) {
   main { width: min(100% - 20px, 980px); padding-top: 10px; }
   .hero { display: block; padding: 22px; }
@@ -247,4 +304,7 @@ textarea { min-height: 96px; resize: vertical; }
   .card { grid-template-columns: 1fr; }
   .card button { width: 100%; justify-content: center; }
   .rank { width: 38px; height: 38px; }
+  .tabs { grid-template-columns: 1fr; }
+  .section-title { align-items: stretch; flex-direction: column; }
+  .section-title button { justify-content: center; }
 }

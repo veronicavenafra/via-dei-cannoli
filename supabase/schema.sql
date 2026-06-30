@@ -25,6 +25,11 @@ create table if not exists reviews (
 alter table bakeries enable row level security;
 alter table reviews enable row level security;
 
+drop policy if exists "public read bakeries" on bakeries;
+drop policy if exists "public insert bakeries" on bakeries;
+drop policy if exists "public read reviews" on reviews;
+drop policy if exists "public insert reviews" on reviews;
+
 create policy "public read bakeries" on bakeries for select using (true);
 create policy "public insert bakeries" on bakeries for insert with check (true);
 create policy "public read reviews" on reviews for select using (true);

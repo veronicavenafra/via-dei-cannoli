@@ -40,3 +40,36 @@ La home mostra:
 - il migliore complessivo, calcolato come media di tutti i criteri e di tutti i votanti;
 - il migliore per ciascuna voce: crosta, ricotta, pistacchio/topping, freschezza, effetto wow;
 - per ogni vincitore di categoria viene indicata la media e il numero di votanti.
+
+## Due pagine/classifiche
+
+La home ha due viste:
+
+- **Classifica gruppo**: usa tutti i voti salvati nel database.
+- **Miei voti**: usa solo i voti inseriti con il nome votante salvato sul dispositivo.
+
+Ogni vista mostra:
+- migliore complessivo;
+- migliore per crosta;
+- migliore per ricotta;
+- migliore per pistacchio/topping;
+- migliore per freschezza;
+- migliore per effetto wow.
+
+## Collegamento a Supabase
+
+Per attivare il database condiviso:
+
+1. Crea un progetto Supabase.
+2. Vai su **SQL Editor**.
+3. Incolla ed esegui il contenuto di `supabase/schema.sql`.
+4. Vai su **Project Settings → API**.
+5. Copia:
+   - Project URL
+   - anon public key
+6. Su Vercel, nel progetto, vai in **Settings → Environment Variables** e aggiungi:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+7. Fai un nuovo deploy.
+
+Senza queste variabili, l'app continua a funzionare in locale, ma ogni telefono vede solo i propri dati.

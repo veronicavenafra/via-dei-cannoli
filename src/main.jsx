@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { createClient } from "@supabase/supabase-js";
-import { Plus, Star, Trophy, MapPin, RefreshCw, PencilLine } from "lucide-react";
+import { Plus, Star, Trophy, MapPin, RefreshCw, PencilLine, Users, UserRound } from "lucide-react";
 import "./styles.css";
 
 const DEFAULT_BAKERIES = [
@@ -67,6 +67,14 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
+const CRITERIA = [
+  { key: "shell", label: "Miglior crosta", shortLabel: "Crosta", hint: "Friabilità, spessore, croccantezza" },
+  { key: "ricotta", label: "Miglior ricotta", shortLabel: "Ricotta", hint: "Crema, dolcezza, qualità" },
+  { key: "pistachio", label: "Miglior pistacchio/topping", shortLabel: "Pistacchio", hint: "Topping, equilibrio, generosità" },
+  { key: "freshness", label: "Miglior freschezza", shortLabel: "Freschezza", hint: "Farcitura, cialda, sensazione appena fatto" },
+  { key: "wow", label: "Miglior effetto wow", shortLabel: "Wow", hint: "Memorabilità e goduria complessiva" }
+];
+
 const storage = {
   get(key, fallback) {
     try {
@@ -84,14 +92,46 @@ function average(review) {
   return Number(((review.shell + review.ricotta + review.pistachio + review.freshness + review.wow) / 5).toFixed(2));
 }
 
-function bakeryAverage(bakeryId, reviews) {
-  const list = reviews.filter((r) => r.bakery_id === bakeryId);
-  if (!list.length) return null;
-  return Number((list.reduce((sum, r) => sum + average(r), 0) / list.length).toFixed(2));
-}
-
 function slugify(value) {
   return value.toLowerCase().trim().replace(/[^a-z0-9àèéìòù]+/gi, "-").replace(/^-|-$/g, "");
+}
+
+function getLeaderboard(bakeries, reviews) {
+  return bakeries
+    .map((b) => {
+      const list = reviews.filter((r) => r.bakery_id === b.id);
+      if (!list.length) return { ...b, avg: null, count: 0 };
+      return {
+        ...b,
+        avg: Number((list.reduce((sum, r) => sum + average(r), 0) / list.length).toFixed(2)),
+        count: list.length
+      };
+    })
+    .sort((a, b) => (b.avg ?? -1) - (a.avg ?? -1) || b.count - a.count || a.stop_order - b.stop_order);
+}
+
+function bestByCriterion(bakeries, reviews, field) {
+  const scored = bakeries
+    .map((b) => {
+      const list = reviews.filter((r) => r.bakery_id === b.id);
+      if (!list.length) return null;
+      return {
+        bakery: b,
+        score: Number((list.reduce((s, r) => s + r[field], 0) / list.length).toFixed(2)),
+        count: list.length
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score || b.count - a.count || a.bakery.stop_order - b.bakery.stop_order);
+
+  return scored[0] ?? null;
+}
+
+function getDashboard(bakeries, reviews) {
+  const leaderboard = getLeaderboard(bakeries, reviews);
+  const overallWinner = leaderboard.find((b) => b.avg !== null && b.avg !== undefined);
+  const criterionWinners = CRITERIA.map((criterion) => ({ ...criterion, winner: bestByCriterion(bakeries, reviews, criterion.key) }));
+  return { leaderboard, overallWinner, criterionWinners };
 }
 
 function App() {
@@ -100,10 +140,30 @@ function App() {
   const [activeBakery, setActiveBakery] = useState(null);
   const [showAddBakery, setShowAddBakery] = useState(false);
   const [syncStatus, setSyncStatus] = useState(supabase ? "sync pronto" : "solo locale");
+  const [currentUser, setCurrentUser] = useState(() => storage.get("currentUser", ""));
+  const [activeView, setActiveView] = useState("group");
+
+  const myReviews = useMemo(() => {
+    const normalized = currentUser.trim().toLowerCase();
+    if (!normalized) return [];
+    return reviews.filter((r) => r.reviewer.trim().toLowerCase() === normalized);
+  }, [reviews, currentUser]);
+
+  const groupDashboard = useMemo(() => getDashboard(bakeries, reviews), [bakeries, reviews]);
+  const myDashboard = useMemo(() => getDashboard(bakeries, myReviews), [bakeries, myReviews]);
+
+  async function seedDefaultBakeriesIfNeeded() {
+    if (!supabase) return;
+    const { data, error } = await supabase.from("bakeries").select("id").limit(1);
+    if (error || data?.length) return;
+    await supabase.from("bakeries").insert(DEFAULT_BAKERIES);
+  }
 
   async function loadRemote() {
     if (!supabase) return;
     setSyncStatus("aggiornamento...");
+    await seedDefaultBakeriesIfNeeded();
+
     const [{ data: remoteBakeries, error: bErr }, { data: remoteReviews, error: rErr }] = await Promise.all([
       supabase.from("bakeries").select("*").order("stop_order", { ascending: true }),
       supabase.from("reviews").select("*").order("created_at", { ascending: false })
@@ -139,38 +199,7 @@ function App() {
 
   useEffect(() => storage.set("bakeries", bakeries), [bakeries]);
   useEffect(() => storage.set("reviews", reviews), [reviews]);
-
-  const leaderboard = useMemo(() => {
-    return bakeries
-      .map((b) => ({ ...b, avg: bakeryAverage(b.id, reviews), count: reviews.filter((r) => r.bakery_id === b.id).length }))
-      .sort((a, b) => (b.avg ?? -1) - (a.avg ?? -1));
-  }, [bakeries, reviews]);
-
-  const bestByCriterion = (field) => {
-    const scored = bakeries
-      .map((b) => {
-        const list = reviews.filter((r) => r.bakery_id === b.id);
-        if (!list.length) return null;
-        return {
-          bakery: b,
-          score: Number((list.reduce((s, r) => s + r[field], 0) / list.length).toFixed(2)),
-          count: list.length
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => b.score - a.score || b.count - a.count);
-
-    return scored[0] ?? null;
-  };
-
-  const overallWinner = leaderboard.find((b) => b.avg !== null && b.avg !== undefined);
-  const criterionWinners = [
-    { key: "shell", label: "Miglior crosta", hint: "Friabilità, spessore, croccantezza" },
-    { key: "ricotta", label: "Miglior ricotta", hint: "Crema, dolcezza, qualità" },
-    { key: "pistachio", label: "Miglior pistacchio/topping", hint: "Topping, equilibrio, generosità" },
-    { key: "freshness", label: "Miglior freschezza", hint: "Farcitura, cialda, sensazione appena fatto" },
-    { key: "wow", label: "Miglior effetto wow", hint: "Memorabilità e goduria complessiva" }
-  ].map((criterion) => ({ ...criterion, winner: bestByCriterion(criterion.key) }));
+  useEffect(() => storage.set("currentUser", currentUser), [currentUser]);
 
   async function addBakery(payload) {
     const bakery = {
@@ -194,9 +223,10 @@ function App() {
   }
 
   async function addReview(payload) {
+    const reviewer = payload.reviewer.trim();
     const review = {
       bakery_id: payload.bakery_id,
-      reviewer: payload.reviewer,
+      reviewer,
       shell: Number(payload.shell),
       ricotta: Number(payload.ricotta),
       pistachio: Number(payload.pistachio),
@@ -206,6 +236,8 @@ function App() {
       photo_url: payload.photo_url || null,
       created_at: new Date().toISOString()
     };
+
+    setCurrentUser(reviewer);
 
     if (supabase) {
       const { data, error } = await supabase.from("reviews").insert(review).select().single();
@@ -222,70 +254,78 @@ function App() {
     setActiveBakery(null);
   }
 
+  const activeDashboard = activeView === "me" ? myDashboard : groupDashboard;
+  const activeReviews = activeView === "me" ? myReviews : reviews;
+
   return (
     <main>
       <header className="hero">
         <div>
           <p className="eyebrow">Sicilia 2026</p>
           <h1>La Via dei Cannoli</h1>
-          <p>Vota crosta, ricotta, pistacchio, freschezza ed effetto wow. Aggiungi nuove pasticcerie quando ne scoprite una.</p>
+          <p>Vota crosta, ricotta, pistacchio, freschezza ed effetto wow. Guarda i tuoi vincitori personali o la classifica del gruppo.</p>
         </div>
         <button className="sync" onClick={loadRemote}>
           <RefreshCw size={16} /> {syncStatus}
         </button>
       </header>
 
-      <section className="dashboard">
-        <div className="panel winner main-winner">
-          <Trophy />
-          <div>
-            <span>Migliore complessivo</span>
-            <strong>{overallWinner?.avg ? `${overallWinner.name} · ${overallWinner.avg}/10` : "Ancora nessun voto"}</strong>
-            <p>
-              {overallWinner?.avg
-                ? `Media complessiva calcolata su tutti i voti ricevuti: crosta, ricotta, pistacchio/topping, freschezza ed effetto wow.`
-                : "Appena inserite i primi voti, qui comparirà il cannolo in testa alla classifica generale."}
-            </p>
-          </div>
-        </div>
-
-        <div className="criteria-grid">
-          {criterionWinners.map((item) => (
-            <CriterionCard key={item.key} item={item} />
-          ))}
-        </div>
+      <section className="identity panel">
+        <label>
+          Il tuo nome votante
+          <input value={currentUser} onChange={(e) => setCurrentUser(e.target.value)} placeholder="Es. Veronica" />
+        </label>
+        <p>Usa sempre lo stesso nome su tutti i dispositivi: la pagina “Miei voti” filtra le recensioni in base a questo valore.</p>
       </section>
 
+      <nav className="tabs">
+        <button className={activeView === "group" ? "active" : ""} onClick={() => setActiveView("group")}>
+          <Users size={16} /> Classifica gruppo
+        </button>
+        <button className={activeView === "me" ? "active" : ""} onClick={() => setActiveView("me")}>
+          <UserRound size={16} /> Miei voti
+        </button>
+      </nav>
+
+      {activeView === "me" && !currentUser.trim() && (
+        <section className="panel notice">
+          Inserisci il tuo nome votante per vedere la tua classifica personale.
+        </section>
+      )}
+
+      <Dashboard
+        title={activeView === "me" ? "I tuoi migliori cannoli" : "Migliori del gruppo"}
+        subtitle={activeView === "me" ? "Calcolati solo sui voti inseriti con il tuo nome." : "Calcolati sulla media di tutti i votanti collegati all’app."}
+        dashboard={activeDashboard}
+      />
+
       <div className="section-title">
-        <h2>Tappe e pasticcerie</h2>
-        <button onClick={() => setShowAddBakery(true)}><Plus size={16} /> Aggiungi</button>
+        <h2>{activeView === "me" ? "La tua classifica" : "Classifica generale"}</h2>
+        <button onClick={() => setShowAddBakery(true)}><Plus size={16} /> Aggiungi pasticceria</button>
       </div>
 
       <section className="cards">
-        {leaderboard.map((b, index) => {
-          const score = bakeryAverage(b.id, reviews);
-          return (
-            <article className="card" key={b.id}>
-              <div className="rank">#{index + 1}</div>
-              <div className="card-content">
-                <h3>{b.name}</h3>
-                <p className="place"><MapPin size={14} /> {b.city}{b.address ? ` · ${b.address}` : ""}</p>
-                <p>{b.notes}</p>
-                <div className="meta">
-                  <span><Star size={14} /> {score ? `${score}/10` : "non votato"}</span>
-                  <span>{b.count} recensioni</span>
-                </div>
+        {activeDashboard.leaderboard.map((b, index) => (
+          <article className="card" key={b.id}>
+            <div className="rank">#{index + 1}</div>
+            <div className="card-content">
+              <h3>{b.name}</h3>
+              <p className="place"><MapPin size={14} /> {b.city}{b.address ? ` · ${b.address}` : ""}</p>
+              <p>{b.notes}</p>
+              <div className="meta">
+                <span><Star size={14} /> {b.avg ? `${b.avg}/10` : "non votato"}</span>
+                <span>{b.count} {b.count === 1 ? "recensione" : "recensioni"}</span>
               </div>
-              <button onClick={() => setActiveBakery(b)}><PencilLine size={16} /> Vota</button>
-            </article>
-          );
-        })}
+            </div>
+            <button onClick={() => setActiveBakery(b)}><PencilLine size={16} /> Vota</button>
+          </article>
+        ))}
       </section>
 
       <section className="panel">
-        <h2>Ultime recensioni</h2>
-        {reviews.length === 0 && <p>Nessuna recensione ancora. Primo cannolo, primo voto.</p>}
-        {reviews.slice(0, 8).map((r) => {
+        <h2>{activeView === "me" ? "Le tue ultime recensioni" : "Ultime recensioni del gruppo"}</h2>
+        {activeReviews.length === 0 && <p>Nessuna recensione ancora.</p>}
+        {activeReviews.slice(0, 8).map((r) => {
           const bakery = bakeries.find((b) => b.id === r.bakery_id);
           return (
             <div className="review" key={r.id}>
@@ -297,9 +337,39 @@ function App() {
         })}
       </section>
 
-      {activeBakery && <ReviewModal bakery={activeBakery} onClose={() => setActiveBakery(null)} onSave={addReview} />}
+      {activeBakery && <ReviewModal bakery={activeBakery} currentUser={currentUser} onClose={() => setActiveBakery(null)} onSave={addReview} />}
       {showAddBakery && <BakeryModal onClose={() => setShowAddBakery(false)} onSave={addBakery} />}
     </main>
+  );
+}
+
+function Dashboard({ title, subtitle, dashboard }) {
+  return (
+    <section className="dashboard">
+      <div className="dashboard-heading">
+        <h2>{title}</h2>
+        <p>{subtitle}</p>
+      </div>
+
+      <div className="panel winner main-winner">
+        <Trophy />
+        <div>
+          <span>Migliore complessivo</span>
+          <strong>{dashboard.overallWinner?.avg ? `${dashboard.overallWinner.name} · ${dashboard.overallWinner.avg}/10` : "Ancora nessun voto"}</strong>
+          <p>
+            {dashboard.overallWinner?.avg
+              ? `Media complessiva su crosta, ricotta, pistacchio/topping, freschezza ed effetto wow.`
+              : "Appena inserite i primi voti, qui comparirà il cannolo in testa."}
+          </p>
+        </div>
+      </div>
+
+      <div className="criteria-grid">
+        {dashboard.criterionWinners.map((item) => (
+          <CriterionCard key={item.key} item={item} />
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -310,7 +380,7 @@ function CriterionCard({ item }) {
       <strong>{item.winner ? `${item.winner.bakery.name} · ${item.winner.score}/10` : "—"}</strong>
       <p>
         {item.winner
-          ? `Media tra ${item.winner.count} ${item.winner.count === 1 ? "votante" : "votanti"}. ${item.hint}.`
+          ? `Media tra ${item.winner.count} ${item.winner.count === 1 ? "voto" : "voti"}. ${item.hint}.`
           : item.hint}
       </p>
     </div>
@@ -327,9 +397,9 @@ function RatingInput({ label, name, value, onChange }) {
   );
 }
 
-function ReviewModal({ bakery, onClose, onSave }) {
+function ReviewModal({ bakery, currentUser, onClose, onSave }) {
   const [form, setForm] = useState({
-    reviewer: "",
+    reviewer: currentUser || "",
     shell: 8,
     ricotta: 8,
     pistachio: 8,
