@@ -1,0 +1,16 @@
+{
+  "name": "La Via dei Cannoli",
+  "short_name": "Cannoli",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fff7ed",
+  "theme_color": "#7c2d12",
+  "description": "App per votare, recensire e classificare i cannoli del viaggio in Sicilia.",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
